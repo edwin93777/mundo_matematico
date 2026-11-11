@@ -1,0 +1,132 @@
+/*
+ * Source stylesheet → compiled by the Tailwind CLI into css/tailwind.css
+ * (npm run dev watches it; npm run build minifies it into dist/).
+ */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ---------------------------------------------------------------- layouts
+ * ONE source of truth for the responsive HUD: CSS decides the layout and
+ * exposes it as --hud-layout; js/ui/layout.js only reads it.
+ *
+ *   sidebar  desktop / landscape tablet (≥1024 wide, ≥560 tall): left 30%
+ *   drawer   short landscape (phones on their side): left slide-out drawer
+ *   sheet    portrait phones & tablets, narrow windows: bottom slide-up sheet
+ */
+:root { --hud-layout: sheet; --hud-peek: 66px; }
+@media (min-width: 1024px) and (min-height: 560px) { :root { --hud-layout: sidebar; } }
+@media (orientation: landscape) and (max-height: 559px) { :root { --hud-layout: drawer; } }
+
+@layer base {
+  html, body { height: 100%; margin: 0; overflow: hidden; overscroll-behavior: none; }
+  body {
+    -webkit-tap-highlight-color: transparent;
+    background:
+      radial-gradient(1200px 600px at 75% -10%, #fff7d6 0%, transparent 60%),
+      linear-gradient(180deg, #8ec5ff 0%, #c4e3ff 55%, #e8f5ff 100%);
+  }
+  h1, h2, h3 { letter-spacing: -0.02em; }
+}
+
+@layer components {
+  .btn { @apply inline-flex items-center justify-center gap-1.5 rounded-2xl px-4 py-2.5 font-extrabold shadow-pop transition duration-200 hover:-translate-y-0.5 active:translate-y-0.5 active:shadow-none disabled:pointer-events-none disabled:opacity-40 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-brand/30; }
+  .btn-ghost { @apply bg-white/70 text-ink ring-1 ring-ink/10 hover:bg-white; }
+  .tile { @apply flex flex-col rounded-2xl bg-white/70 px-3 py-2 ring-1 ring-white/60; }
+  .digit { @apply h-12 w-full rounded-xl border-[3px] border-ink/10 bg-white text-center font-display text-2xl font-extrabold text-ink outline-none transition focus:border-brand focus:ring-4 focus:ring-brand/20; }
+  .chip-mark { @apply h-8 w-full rounded-lg border-2 text-sm font-black transition; }
+  .aux-box { @apply h-9 w-full rounded-lg border-2 border-dashed border-ink/25 bg-white/60 text-center font-display text-lg font-extrabold text-ink outline-none transition placeholder:text-ink/25 focus:border-brand focus:bg-white focus:ring-4 focus:ring-brand/20; }
+  .aux-box.is-on { @apply border-solid border-brand bg-brand text-white; }
+  .aux-box.is-lent { @apply border-solid border-red-400 bg-red-50 text-red-500; }
+  .is-ok { @apply !border-hundred !bg-green-50; }
+  .is-bad { @apply !border-red-400 !bg-red-50; }
+
+  /* ----------------------------------------------------------- HUD panel */
+  .hud-panel {
+    @apply fixed z-10 flex flex-col border border-white/20 bg-white/80 shadow-glass backdrop-blur-md;
+    transition: transform 0.42s cubic-bezier(0.22, 0.9, 0.24, 1);
+    will-change: transform;
+  }
+  .hud-handle, .hud-tab { display: none; }
+  .hud-handle-pill { @apply block h-1.5 w-12 rounded-full bg-ink/25; }
+
+  /* sheet (default): bottom, slides down leaving a peek bar */
+  .hud-panel {
+    left: 0; right: 0; bottom: 0;
+    max-height: 64vh; max-height: 64dvh;
+    border-radius: 1.5rem 1.5rem 0 0;
+  }
+  .hud-panel[data-open='false'] { transform: translateY(calc(100% - var(--hud-peek))); }
+  .hud-handle {
+    @apply w-full flex-none cursor-grab items-center justify-center pb-0.5 pt-2;
+    display: flex;
+    touch-action: none;
+  }
+  /* NOTE: display/padding of these hooks live HERE, not in utility classes on
+     the elements — utilities load after components and would override them. */
+  .hud-footer { padding-bottom: max(0.75rem, env(safe-area-inset-bottom)); }
+  .hud-tiles { display: none; }
+  .hud-header { @apply px-3.5 pb-2.5 pt-1; }
+  .hud-header > * + * { margin-top: 0.5rem; }
+  .hud-title { @apply min-w-0 truncate whitespace-nowrap text-base; }
+  .hud-title br { display: none; }
+  .hud-mini { @apply inline-flex flex-none items-center gap-2 whitespace-nowrap rounded-xl bg-white/70 px-2 py-1 text-xs font-extrabold ring-1 ring-white/60; }
+  /* Very narrow phones: keep the logo, hide the title visually (still read by screen readers). */
+  @media (max-width: 400px) {
+    .hud-title { @apply sr-only; }
+    .hud-mini { margin-right: auto; }
+  }
+
+  /* drawer: left, slides out with a pull tab */
+  @media (orientation: landscape) and (max-height: 559px) {
+    .hud-panel {
+      top: 0; bottom: 0; left: 0; right: auto;
+      width: min(48vw, 400px); max-height: none;
+      border-radius: 0 1.5rem 1.5rem 0;
+      padding-left: env(safe-area-inset-left);
+    }
+    .hud-panel[data-open='false'] { transform: translateX(-100%); }
+    .hud-handle { display: none; }
+    .hud-tab {
+      @apply absolute grid h-16 w-10 place-items-center rounded-r-2xl bg-white/90 font-display text-xl font-black text-ink shadow-glass ring-1 ring-ink/10;
+      top: 50%; right: -2.5rem; margin-top: -2rem;
+    }
+    .hud-footer { padding-bottom: 0.75rem; }
+  }
+
+  /* sidebar: desktop, fixed left 30% */
+  @media (min-width: 1024px) and (min-height: 560px) {
+    .hud-panel {
+      top: 0; bottom: 0; left: 0; right: auto;
+      width: 30vw; min-width: 300px; max-height: none;
+      border-radius: 0 1.5rem 1.5rem 0;
+    }
+    .hud-panel[data-open='false'] { transform: none; }
+    .hud-handle, .hud-tab, .hud-mini { display: none; }
+    .hud-tiles { display: grid; }
+    .hud-header { @apply p-4 pb-3; }
+    .hud-header > * + * { margin-top: 0.75rem; }
+    .hud-title { @apply text-lg; white-space: normal; overflow: visible; }
+    .hud-title br { display: inline; }
+    .hud-footer { padding-bottom: 0.75rem; }
+  }
+  @media (min-width: 1280px) and (min-height: 560px) { .hud-title { @apply text-xl; } .hud-title br { display: none; } }
+}
+
+/* -------------------------------------------------------------- feedback
+ * Uses the individual `translate` property so it composes with the drawer's
+ * `transform` instead of overriding it. */
+.shake { animation: shake 0.4s; }
+@keyframes shake { 25% { translate: -6px 0; } 75% { translate: 6px 0; } }
+.shiver { animation: shiver 0.3s linear; }
+@keyframes shiver {
+  0% { translate: 0 0; } 15% { translate: -5px 1px; } 30% { translate: 4px -1px; }
+  45% { translate: -3px 1px; } 60% { translate: 2px 0; } 80% { translate: -1px 0; } 100% { translate: 0 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hud-panel { transition: none; }
+  .shiver { animation: none; outline: 3px solid #ef4444; }
+  .btn { transition: none; }
+  .btn:hover { --tw-translate-y: 0; }
+}

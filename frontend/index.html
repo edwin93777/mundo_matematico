@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Mundo Matemático 3D</title>
+  <meta name="description" content="Juego 3D de matemáticas para 3° y 4° grado: valor posicional, suma llevando y resta prestando." />
+  <meta name="theme-color" content="#8ec5ff" />
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%A7%AE%3C/text%3E%3C/svg%3E" />
+
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Luckiest+Guy&family=Sora:wght@600;700;800&family=Nunito:wght@500;700;800;900&display=swap" rel="stylesheet" />
+
+  <!-- Compiled Tailwind (css/app.css → css/tailwind.css via the Tailwind CLI) -->
+  <link rel="stylesheet" href="./css/tailwind.css" />
+
+  <!-- Native ES modules: Three.js + GSAP pinned on jsDelivr, no bundler -->
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
+        "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/",
+        "gsap": "https://cdn.jsdelivr.net/npm/gsap@3.12.5/index.js"
+      }
+    }
+  </script>
+  <link rel="modulepreload" href="https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js" crossorigin />
+</head>
+<body class="font-body text-ink antialiased">
+  <!-- WebGL layer: full-bleed; the camera view is offset so the scene centers in the area the HUD leaves free -->
+  <canvas id="scene" class="fixed inset-0 h-full w-full touch-none" aria-label="Escena 3D con bloques de base diez"></canvas>
+
+  <!-- Glass HUD: left sidebar (desktop, 30%), side drawer (landscape phones) or bottom sheet (portrait / tablets) -->
+  <aside id="panel" class="hud-panel" data-open="true" aria-label="Panel de juego">
+    <button id="panel-handle" class="hud-handle" type="button" aria-controls="panel" aria-expanded="true" aria-label="Ocultar panel">
+      <span class="hud-handle-pill"></span>
+    </button>
+    <button id="panel-tab" class="hud-tab" type="button" aria-controls="panel" aria-expanded="true" aria-label="Ocultar panel">‹</button>
+
+    <!-- Header -->
+    <header class="hud-header border-b border-ink/5">
+      <div class="flex items-center gap-2">
+        <div class="grid h-9 w-9 flex-none place-items-center rounded-xl bg-gradient-to-br from-brand to-ten text-lg text-white shadow-pop">🧮</div>
+        <h1 class="hud-title mr-auto font-display font-extrabold leading-none">Mundo<br /> Matemático 3D</h1>
+        <span class="hud-mini" aria-label="Progreso">
+          <span>Nv <b id="hud-mini-level">1</b></span><span>⭐ <b id="hud-mini-stars">0</b></span><span>💰 <b id="hud-mini-coins">0</b></span>
+        </span>
+        <span id="api-dot" class="h-2.5 w-2.5 flex-none rounded-full bg-ink-mute" title="Servidor"></span>
+        <button id="btn-reset-progress" class="btn btn-ghost h-8 w-8 flex-none !p-0 text-sm" title="Borrar progreso" aria-label="Borrar progreso">↺</button>
+      </div>
+
+      <div class="hud-tiles grid-cols-3 gap-2">
+        <div class="tile">
+          <span class="text-[11px] font-bold uppercase tracking-wide text-ink-soft">Nivel</span>
+          <b id="hud-level" class="font-display text-xl leading-tight">1</b>
+          <div class="mt-1 h-1.5 overflow-hidden rounded-full bg-ink/10"><div id="hud-level-bar" class="h-full w-0 rounded-full bg-gradient-to-r from-brand to-ten transition-all duration-700"></div></div>
+        </div>
+        <div class="tile">
+          <span class="text-[11px] font-bold uppercase tracking-wide text-ink-soft">Estrellas</span>
+          <b class="font-display text-xl leading-tight">⭐ <span id="hud-stars">0</span></b>
+        </div>
+        <div class="tile">
+          <span class="text-[11px] font-bold uppercase tracking-wide text-ink-soft">Monedas</span>
+          <b class="font-display text-xl leading-tight">💰 <span id="hud-coins">0</span></b>
+        </div>
+      </div>
+
+      <div class="flex items-center gap-2">
+        <div id="grade-toggle" class="flex flex-none rounded-xl bg-ink/5 p-1 text-sm font-extrabold" role="group" aria-label="Grado">
+          <button data-grade="3" class="grade-btn rounded-lg px-2.5 py-1">3°</button>
+          <button data-grade="4" class="grade-btn rounded-lg px-2.5 py-1">4°</button>
+        </div>
+        <nav id="module-tabs" class="flex min-w-0 flex-1 gap-1 overflow-x-auto" aria-label="Portales"></nav>
+      </div>
+    </header>
+
+    <!-- Scrollable body -->
+    <div id="panel-scroll" class="min-h-0 flex-1 space-y-3 overflow-y-auto overscroll-contain p-4">
+      <section>
+        <p id="panel-module" class="text-xs font-black uppercase tracking-widest text-brand">Cargando…</p>
+        <h2 id="panel-prompt" class="mt-1 font-display text-lg font-extrabold leading-snug sm:text-xl xl:text-2xl">Conectando con el servidor de retos…</h2>
+      </section>
+
+      <section id="workspace"></section>
+
+      <!-- Inline feedback card (never blocks the 3D view) -->
+      <section id="feedback" class="hidden rounded-2xl p-4 ring-1" aria-live="polite">
+        <div class="flex items-center gap-3">
+          <div id="fb-stars" class="font-display text-3xl"></div>
+          <h3 id="fb-title" class="font-display text-lg font-extrabold"></h3>
+        </div>
+        <p id="fb-message" class="mt-1 font-bold"></p>
+        <p id="fb-hint" class="mt-2 hidden rounded-xl bg-white/70 p-2.5 text-sm font-bold"></p>
+        <p id="fb-reward" class="mt-2 hidden text-sm font-black text-brand"></p>
+        <button id="fb-next" class="btn mt-3 hidden w-full bg-brand text-white">Siguiente reto ➜</button>
+      </section>
+
+      <p id="toast" class="hidden rounded-xl bg-ink px-3 py-2 text-sm font-bold text-white" role="status"></p>
+    </div>
+
+    <!-- Footer actions -->
+    <footer class="hud-footer flex items-center gap-2 border-t border-ink/5 px-3 pt-3">
+      <button id="btn-new" class="btn btn-ghost !px-3" title="Otro reto" aria-label="Otro reto">🔄</button>
+      <button id="btn-rebuild" class="btn btn-ghost !px-3" title="Reiniciar bloques" aria-label="Reiniciar bloques">🧱↺</button>
+      <span id="panel-attempt" class="text-xs font-bold text-ink-soft"></span>
+      <button id="btn-check" class="btn ml-auto bg-gradient-to-r from-hundred to-emerald-500 text-white" disabled>✔ Comprobar</button>
+    </footer>
+  </aside>
+
+  <noscript><p class="p-6">Este juego necesita JavaScript y WebGL.</p></noscript>
+  <script type="module" src="./js/game.js"></script>
+</body>
+</html>
